@@ -26,7 +26,9 @@ CONF_SECRET_KEY = 'secret_key'
 
 DOMAIN = 'netatmo'
 
-NETATMO_AUTH = None
+NETATMO_AUTH = 'netatmo_auth'
+NETATMO_CAMERA_DATA = 'netatmo_camera_data'
+
 DEFAULT_DISCOVERY = True
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=10)
@@ -47,9 +49,8 @@ def setup(hass, config):
     """Set up the Netatmo devices."""
     import lnetatmo
 
-    global NETATMO_AUTH
     try:
-        NETATMO_AUTH = lnetatmo.ClientAuth(
+        hass.data[NETATMO_AUTH] = lnetatmo.ClientAuth(
             config[DOMAIN][CONF_API_KEY], config[DOMAIN][CONF_SECRET_KEY],
             config[DOMAIN][CONF_USERNAME], config[DOMAIN][CONF_PASSWORD],
             'read_station read_camera access_camera '
@@ -58,6 +59,8 @@ def setup(hass, config):
     except HTTPError:
         _LOGGER.error("Unable to connect to Netatmo API")
         return False
+
+    hass.data[NETATMO_CAMERA_DATA] = CameraData(hass.data[NETATMO_AUTH])
 
     if config[DOMAIN][CONF_DISCOVERY]:
         for component in 'camera', 'sensor', 'binary_sensor', 'climate':
@@ -69,44 +72,38 @@ def setup(hass, config):
 class CameraData(object):
     """Get the latest data from Netatmo."""
 
-    def __init__(self, auth, home=None):
+    def __init__(self, auth):
         """Initialize the data object."""
         self.auth = auth
         self.camera_data = None
-        self.camera_names = []
-        self.module_names = []
-        self.home = home
-        self.camera_type = None
 
-    def get_camera_names(self):
+    def get_camera_names(self, camera_home):
         """Return all camera available on the API as a list."""
-        self.camera_names = []
+        camera_names = []
         self.update()
-        if not self.home:
+        if not camera_home:
             for home in self.camera_data.cameras:
                 for camera in self.camera_data.cameras[home].values():
-                    self.camera_names.append(camera['name'])
+                    camera_names.append(camera['name'])
         else:
-            for camera in self.camera_data.cameras[self.home].values():
-                self.camera_names.append(camera['name'])
-        return self.camera_names
+            for camera in self.camera_data.cameras[camera_home].values():
+                camera_names.append(camera['name'])
+        return camera_names
 
-    def get_module_names(self, camera_name):
+    def get_module_names(self, camera_name, camera_home):
         """Return all module available on the API as a list."""
-        self.module_names = []
+        module_names = []
         self.update()
         cam_id = self.camera_data.cameraByName(camera=camera_name,
-                                               home=self.home)['id']
+                                               camera_home=camera_home)['id']
         for module in self.camera_data.modules.values():
             if cam_id == module['cam_id']:
-                self.module_names.append(module['name'])
-        return self.module_names
+                module_names.append(module['name'])
+        return module_names
 
-    def get_camera_type(self, camera=None, home=None, cid=None):
-        """Return all module available on the API as a list."""
-        for camera_name in self.camera_names:
-            self.camera_type = self.camera_data.cameraType(camera_name)
-            return self.camera_type
+    def get_camera_type(self, camera_name=None, camera_home=None):
+        """Return the type of camera"""
+        return self.camera_data.cameraType(camera_name, camera_home)
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
@@ -117,5 +114,4 @@ class CameraData(object):
     @Throttle(MIN_TIME_BETWEEN_EVENT_UPDATES)
     def update_event(self):
         """Call the Netatmo API to update the events."""
-        self.camera_data.updateEvent(
-            home=self.home, cameratype=self.camera_type)
+        self.camera_data.updateEvent(cameratype=self.camera_type)

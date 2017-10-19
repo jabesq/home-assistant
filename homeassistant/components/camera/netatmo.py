@@ -38,8 +38,8 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     verify_ssl = config.get(CONF_VERIFY_SSL, True)
     import lnetatmo
     try:
-        data = CameraData(netatmo.NETATMO_AUTH, home)
-        for camera_name in data.get_camera_names():
+        data = hass.data[NETATMO_CAMERA_DATA]
+        for camera_name in data.get_camera_names(home):
             camera_type = data.get_camera_type(camera=camera_name, home=home)
             if CONF_CAMERAS in config:
                 if config[CONF_CAMERAS] != [] and \

@@ -71,7 +71,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     import lnetatmo
     try:
-        data = CameraData(netatmo.NETATMO_AUTH, home)
+        data = hass.data[NETATMO_CAMERA_DATA]
         if not data.get_camera_names():
             return None
     except lnetatmo.NoDevice:
@@ -83,7 +83,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         CONF_PRESENCE_SENSORS, PRESENCE_SENSOR_TYPES)
     tag_sensors = config.get(CONF_TAG_SENSORS, TAG_SENSOR_TYPES)
 
-    for camera_name in data.get_camera_names():
+    for camera_name in data.get_camera_names(home):
         camera_type = data.get_camera_type(camera=camera_name, home=home)
         if camera_type == 'NACamera':
             if CONF_CAMERAS in config:
@@ -104,7 +104,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
                     data, camera_name, module_name, home, timeout,
                     camera_type, variable)], True)
 
-        for module_name in data.get_module_names(camera_name):
+        for module_name in data.get_module_names(camera_name, home):
             for variable in tag_sensors:
                 camera_type = None
                 add_devices([NetatmoBinarySensor(
